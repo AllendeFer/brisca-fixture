@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>🃏 Fixture Brisca — Mini App</title>
+  <style>
+    :root{--bg:#0b0c0f;--card:#151823;--text:#e8eaf1;--muted:#9aa4b2;--rest:#ffd166;--accent:#5da7ff;--ok:#22c55e;--danger:#ef4444}
+    html,body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial;margin:0}
+    .wrap{max-width:1100px;margin:28px auto;padding:0 16px}
+    h1{font-size:22px;margin:0 0 2px}
+    .sub{color:var(--muted);margin-bottom:16px}
+    .card{background:var(--card);border-radius:14px;padding:16px;box-shadow:0 12px 30px rgba(0,0,0,.3)}
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:end}
+    label{font-size:13px;color:var(--muted);display:block;margin-bottom:6px}
+    input[type=number]{background:#0f1220;border:1px solid rgba(255,255,255,.12);color:var(--text);padding:10px 12px;border-radius:10px;min-width:160px}
+    .btn{background:#101427;border:1px solid rgba(255,255,255,.12);color:var(--text);padding:10px 12px;border-radius:10px;cursor:pointer}
+    .btn.primary{border-color:transparent;background:linear-gradient(45deg,#2563eb,#5da7ff)}
+    .btn:hover{filter:brightness(1.05)}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 0}
+    table{width:100%;border-collapse:collapse;font-size:14px}
+    thead th{text-align:left;color:var(--muted);font-weight:600;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.1);position:sticky;top:0;background:var(--card)}
+    tbody td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.06)}
+    tbody tr:hover{background:rgba(255,255,255,.03)}
+    .rheader{margin:18px 0 8px;font-size:14px;color:var(--muted)}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700;color:#000}
+    .rest{background:var(--rest)}
+    .ok{color:var(--ok)}
+    footer{color:var(--muted);font-size:12px;margin-top:10px}
+    @media print{.no-print{display:none}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🃏 Fixture para Campeonato de Brisca</h1>
+    <div class="sub">Round-robin (método del círculo). Todas las mesas de cada ronda pueden jugarse en simultáneo.</div>
+
+    <div class="card no-print">
+      <div class="row">
+        <div>
+          <label for="teams">Número de equipos</label>
+          <input id="teams" type="number" min="2" value="6" />
+        </div>
+        <div>
+          <button id="gen" class="btn primary">Generar fixture</button>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="downloadCsv" class="btn" disabled>⬇️ Descargar CSV</button>
+        <button id="downloadHtml" class="btn" disabled>⬇️ Descargar HTML</button>
+        <button id="printBtn" class="btn" disabled>🖨️ Imprimir/Guardar PDF</button>
+        <span id="status" class="sub"></span>
+      </div>
+    </div>
+
+    <div id="output" class="card" style="margin-top:14px;display:none"></div>
+    <footer class="no-print">Hecho con ❤️ — Fernán Allende.</footer>
+  </div>
+
+  <script>
+    const BYE = 'DESCANSA';
+
+    function generateFixture(n){
+      if(n < 2) throw new Error('Se requieren al menos 2 equipos');
+      const teams = Array.from({length:n}, (_,i)=>`E${i+1}`);
+      let odd = n % 2 === 1;
+      let work = teams.slice();
+      if(odd){ work.push(BYE); n += 1; }
+      const rounds = n - 1;
+      const half = Math.floor(n/2);
+      const rows = [];
+      for(let r=1; r<=rounds; r++){
+        for(let i=0;i<half;i++){
+          let a = work[i];
+          let b = work[n-1-i];
+          if(a===BYE || b===BYE){
+            const rest = (b===BYE)? a : b;
+            rows.push({Ronda:r, Mesa:i+1, Local:rest, Visita:'', Nota:'DESCANSA'});
+          } else {
+            if(r % 2 === 0){ const t=a; a=b; b=t; }
+            rows.push({Ronda:r, Mesa:i+1, Local:a, Visita:b, Nota:''});
+          }
+        }
+        const fixed = work[0];
+        const tail = work.slice(1);
+        work = [fixed, tail[tail.length-1], ...tail.slice(0,-1)];
+      }
+      return rows;
+    }
+
+    function groupByRound(rows){
+      const map = new Map();
+      rows.forEach(r=>{ if(!map.has(r.Ronda)) map.set(r.Ronda,[]); map.get(r.Ronda).push(r); });
+      return Array.from(map.entries()).sort((a,b)=>a[0]-b[0]);
+    }
+
+    function renderTable(rows){
+      const rounds = groupByRound(rows);
+      let html = '';
+      html += '<table><thead><tr><th>Ronda</th><th>Mesa</th><th>Local</th><th>Visita</th><th>Nota</th></tr></thead><tbody>';
+      rounds.forEach(([r, list])=>{
+        list.forEach(row=>{
+          if(row.Nota==='DESCANSA'){
+            html += `<tr><td>${row.Ronda}</td><td>${row.Mesa}</td><td>${row.Local}</td><td></td><td><span class="pill rest">DESCANSA</span></td></tr>`
+          } else {
+            html += `<tr><td>${row.Ronda}</td><td>${row.Mesa}</td><td>${row.Local}</td><td>${row.Visita}</td><td></td></tr>`
+          }
+        })
+      });
+      html += '</tbody></table>';
+      return html;
+    }
+
+    function rowsToCSV(rows){
+      const header = ['Ronda','Mesa','Local','Visita','Nota'];
+      const lines = [header.join(',')];
+      rows.forEach(r=>{
+        lines.push([r.Ronda,r.Mesa,escapeCsv(r.Local),escapeCsv(r.Visita),escapeCsv(r.Nota)].join(','));
+      });
+      return lines.join('\n');
+    }
+    function escapeCsv(v){
+      if(v==null) return '';
+      const s = String(v);
+      return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+    }
+
+    function download(filename, mime, content){
+      const blob = new Blob([content], {type:mime});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+      setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 0);
+    }
+
+    function buildStandaloneHTML(tableHtml, n){
+      return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Fixture Brisca (${n} equipos)</title>
+<style>:root{--bg:#0b0c0f;--card:#151823;--text:#e8eaf1;--muted:#9aa4b2;--rest:#ffd166}html,body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial;margin:0}.wrap{max-width:1100px;margin:28px auto;padding:0 16px}.card{background:var(--card);border-radius:14px;padding:16px;box-shadow:0 12px 30px rgba(0,0,0,.3)}table{width:100%;border-collapse:collapse;font-size:14px}thead th{text-align:left;color:var(--muted);font-weight:600;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.1);position:sticky;top:0;background:var(--card)}tbody td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.06)}tbody tr:hover{background:rgba(255,255,255,.03)}.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700;color:#000}.rest{background:var(--rest)}</style></head><body><div class="wrap"><h1>Fixture de Brisca</h1><div class="card">${tableHtml}</div></div></body></html>`;
+    }
+
+    const teamsInput = document.getElementById('teams');
+    const genBtn = document.getElementById('gen');
+    const out = document.getElementById('output');
+    const status = document.getElementById('status');
+    const dlCsv = document.getElementById('downloadCsv');
+    const dlHtml = document.getElementById('downloadHtml');
+    const printBtn = document.getElementById('printBtn');
+
+    let lastRows = null;
+
+    genBtn.addEventListener('click', ()=>{
+      const n = parseInt(teamsInput.value, 10);
+      if(isNaN(n) || n < 2){
+        status.textContent = 'Ingresa un número válido (≥ 2).';
+        status.style.color = 'var(--danger)';
+        return;
+      }
+      try{
+        const rows = generateFixture(n);
+        lastRows = rows;
+        out.innerHTML = renderTable(rows);
+        out.style.display = '';
+        status.innerHTML = `<span class="ok">Fixture generado para ${n} equipos.</span>`;
+        dlCsv.disabled = dlHtml.disabled = printBtn.disabled = false;
+      }catch(e){
+        status.textContent = 'Error: ' + e.message;
+      }
+    });
+
+    dlCsv.addEventListener('click', ()=>{
+      if(!lastRows) return;
+      const n = parseInt(teamsInput.value, 10);
+      download(`briscas_fixture_${n}.csv`, 'text/csv;charset=utf-8', rowsToCSV(lastRows));
+    });
+
+    dlHtml.addEventListener('click', ()=>{
+      if(!lastRows) return;
+      const n = parseInt(teamsInput.value, 10);
+      const tableHtml = out.innerHTML;
+      const page = buildStandaloneHTML(tableHtml, n);
+      download(`briscas_fixture_${n}.html`, 'text/html;charset=utf-8', page);
+    });
+
+    printBtn.addEventListener('click', ()=>{ window.print(); });
+  </script>
+</body>
+</html>
