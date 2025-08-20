@@ -241,14 +241,10 @@ if st.button("Generar fixture"):
     except Exception as e:
         st.error(f"Error: {e}")
 
-with st.expander("¿Cómo publicar en Streamlit Cloud?", expanded=False):
-    st.markdown(
-        """
-        1. Sube este archivo `briscas.py` a un repositorio en GitHub.
-        2. Ve a **streamlit.io -> Community Cloud** y conecta tu GitHub.
-        3. Selecciona el repo y el archivo principal `briscas.py`.
-        4. Deploy. Obtendrás una URL pública (HTTPS) accesible desde celular y computador.
-        
-        **Tip:** Si quieres un dominio propio, usa CNAME/redirect hacia la URL pública de Streamlit.
-        """
+st.markdown(
+    "<hr style='margin-top:40px;margin-bottom:10px'>"
+    "<div style='text-align:center;color:gray;font-size:13px'>"
+    "Creado con ❤️ por Fernán Allende"
+    "</div>",
+    unsafe_allow_html=True
     )
